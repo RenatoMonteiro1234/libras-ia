@@ -16,7 +16,7 @@ const upload = multer({
     limits: { fileSize: 2000 * 1024 * 1024 }
 });
 
-if (!fs.existsSync('/tmp/uploads')) fs.mkdirSync('/tmp/uploads', {recursive:true});
+if (!fs.existsSync('/tmp/uploads')) fs.mkdirSync('/tmp/uploads', { recursive: true });
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -76,7 +76,7 @@ async function gerarAvatarLibras(texto) {
         source_url: 'https://clips-presenters.d-id.com/amy/image.png'
     }, {
         headers: {
-            'Authorization': 'Basic ' + Buffer.from(process.env.DID_API_KEY).toString('base64'),
+            'Authorization': 'Basic ' + process.env.DID_API_KEY,
             'Content-Type': 'application/json'
         }
     });
@@ -88,7 +88,7 @@ async function gerarAvatarLibras(texto) {
         await new Promise(r => setTimeout(r, 3000));
         const check = await axios.get(`https://api.d-id.com/talks/${talkId}`, {
             headers: {
-                'Authorization': 'Basic ' + Buffer.from(process.env.DID_API_KEY).toString('base64')
+                'Authorization': 'Basic ' + process.env.DID_API_KEY
             }
         });
         console.log('Avatar status:', check.data.status);
