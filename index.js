@@ -11,6 +11,10 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
+app.get('/test-did', (req, res) => {
+    res.json({ chave: process.env.DID_API_KEY ? process.env.DID_API_KEY.substring(0, 20) + '...' : 'VAZIA' });
+});
+
 const upload = multer({
     dest: '/tmp/uploads/',
     limits: { fileSize: 2000 * 1024 * 1024 }
@@ -28,7 +32,7 @@ async function transcreverAudio(caminhoArquivo) {
 
     const uploadResp = await axios.post('https://api.assemblyai.com/v2/upload', fileData, {
         headers: {
-            'Authorization': 'Basic ' + process.env.DID_API_KEY,
+            'Authorization': process.env.ASSEMBLYAI_API_KEY,
             'content-type': 'application/octet-stream'
         },
         maxBodyLength: Infinity,
@@ -40,8 +44,7 @@ async function transcreverAudio(caminhoArquivo) {
 
     const transcriptResp = await axios.post('https://api.assemblyai.com/v2/transcript', {
         audio_url: audioUrl,
-        language_code: 'pt',
-        speech_models: ['universal-2']
+        language_code: 'pt'
     }, {
         headers: { 'authorization': process.env.ASSEMBLYAI_API_KEY }
     });
@@ -121,4 +124,5 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Servidor rodando em http://localhost:${PORT}`);
 });
+
 module.exports = app;
