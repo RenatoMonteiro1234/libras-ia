@@ -12,11 +12,11 @@ app.use(express.json());
 app.use(express.static('public'));
 
 const upload = multer({
-    dest: 'uploads/',
+    dest: '/tmp/uploads/',
     limits: { fileSize: 2000 * 1024 * 1024 }
 });
 
-if (!fs.existsSync('uploads')) fs.mkdirSync('uploads');
+if (!fs.existsSync('/tmp/uploads')) fs.mkdirSync('/tmp/uploads', {recursive:true});
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
