@@ -11,16 +11,13 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-app.get('/test-did', (req, res) => {
-    res.json({ chave: process.env.DID_API_KEY ? process.env.DID_API_KEY.substring(0, 20) + '...' : 'VAZIA' });
-});
+const uploadDir = process.env.NODE_ENV === 'production' ? '/tmp/uploads' : 'uploads';
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
 const upload = multer({
-    dest: '/tmp/uploads/',
+    dest: uploadDir,
     limits: { fileSize: 2000 * 1024 * 1024 }
 });
-
-if (!fs.existsSync('/tmp/uploads')) fs.mkdirSync('/tmp/uploads', { recursive: true });
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -45,7 +42,7 @@ async function transcreverAudio(caminhoArquivo) {
     const transcriptResp = await axios.post('https://api.assemblyai.com/v2/transcript', {
         audio_url: audioUrl,
         language_code: 'pt',
-        speech_models: ['universal-2'],
+        speech_models: ['universal-2']
     }, {
         headers: { 'authorization': process.env.ASSEMBLYAI_API_KEY }
     });
@@ -67,6 +64,7 @@ async function transcreverAudio(caminhoArquivo) {
 async function gerarAvatarLibras(texto) {
     console.log('Gerando avatar D-ID...');
     const textoResumido = texto.substring(0, 500);
+    const didAuth = 'Basic ' + process.env.DID_API_KEY;
 
     const response = await axios.post('https://api.d-id.com/talks', {
         script: {
@@ -80,7 +78,7 @@ async function gerarAvatarLibras(texto) {
         source_url: 'https://clips-presenters.d-id.com/amy/image.png'
     }, {
         headers: {
-            'Authorization': 'Basic ' + process.env.DID_API_KEY,
+            'Authorization': didAuth,
             'Content-Type': 'application/json'
         }
     });
@@ -91,9 +89,7 @@ async function gerarAvatarLibras(texto) {
     while (true) {
         await new Promise(r => setTimeout(r, 3000));
         const check = await axios.get(`https://api.d-id.com/talks/${talkId}`, {
-            headers: {
-                'Authorization': 'Basic ' + process.env.DID_API_KEY
-            }
+            headers: { 'Authorization': didAuth }
         });
         console.log('Avatar status:', check.data.status);
         if (check.data.status === 'done') return check.data.result_url;
