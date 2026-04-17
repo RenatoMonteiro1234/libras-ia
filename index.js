@@ -64,8 +64,7 @@ async function transcreverAudio(caminhoArquivo) {
 async function gerarAvatarLibras(texto) {
     console.log('Gerando avatar D-ID...');
     const textoResumido = texto.substring(0, 500);
-    // Linha 67 — volta para isso:
-    const didAuth = 'Basic ' + Buffer.from(process.env.DID_API_KEY).toString('base64');
+    const didAuth = 'Basic ' + process.env.DID_API_KEY;;
     const response = await axios.post('https://api.d-id.com/talks', {
         script: {
             type: 'text',
