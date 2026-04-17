@@ -5,6 +5,10 @@ const cors = require('cors');
 const axios = require('axios');
 const path = require('path');
 const fs = require('fs');
+const ffmpeg = require('fluent-ffmpeg');
+const ffmpegStatic = require('ffmpeg-static');
+
+ffmpeg.setFfmpegPath(ffmpegStatic);
 
 const app = express();
 app.use(cors());
@@ -41,8 +45,7 @@ async function transcreverAudio(caminhoArquivo) {
 
     const transcriptResp = await axios.post('https://api.assemblyai.com/v2/transcript', {
         audio_url: audioUrl,
-        language_code: 'pt',
-        speech_models: ['universal-2']
+        language_code: 'pt'
     }, {
         headers: { 'authorization': process.env.ASSEMBLYAI_API_KEY }
     });
@@ -64,7 +67,8 @@ async function transcreverAudio(caminhoArquivo) {
 async function gerarAvatarLibras(texto) {
     console.log('Gerando avatar D-ID...');
     const textoResumido = texto.substring(0, 500);
-    const didAuth = 'Basic ' + process.env.DID_API_KEY;;
+    const didAuth = 'Basic ' + process.env.DID_API_KEY;
+
     const response = await axios.post('https://api.d-id.com/talks', {
         script: {
             type: 'text',
@@ -96,22 +100,77 @@ async function gerarAvatarLibras(texto) {
     }
 }
 
+async function baixarVideo(url, destino) {
+    console.log('Baixando vídeo do avatar...');
+    const response = await axios.get(url, { responseType: 'stream' });
+    const writer = fs.createWriteStream(destino);
+    response.data.pipe(writer);
+    return new Promise((resolve, reject) => {
+        writer.on('finish', resolve);
+        writer.on('error', reject);
+    });
+}
+
+async function aplicarOverlay(videoOriginal, videoAvatar, videoFinal) {
+    console.log('Aplicando overlay FFmpeg...');
+    return new Promise((resolve, reject) => {
+        ffmpeg()
+            .input(videoOriginal)
+            .input(videoAvatar)
+            .complexFilter([
+                '[1:v]scale=320:240[avatar]',
+                '[0:v][avatar]overlay=W-w-20:H-h-20[out]'
+            ])
+            .outputOptions([
+                '-map [out]',
+                '-map 0:a?',
+                '-c:v libx264',
+                '-c:a aac',
+                '-shortest'
+            ])
+            .output(videoFinal)
+            .on('start', cmd => console.log('FFmpeg iniciado:', cmd))
+            .on('progress', p => console.log('Progresso:', p.percent?.toFixed(1) + '%'))
+            .on('end', () => { console.log('Overlay concluído!'); resolve(); })
+            .on('error', (err) => { console.error('Erro FFmpeg:', err.message); reject(err); })
+            .run();
+    });
+}
+
 app.post('/processar', upload.single('video'), async (req, res) => {
+    const arquivosParaLimpar = [];
+
     try {
         console.log('Vídeo recebido:', req.file.originalname);
+        arquivosParaLimpar.push(req.file.path);
+
+        // 1. Transcreve o áudio
         const texto = await transcreverAudio(req.file.path);
-        console.log('Transcrito! Gerando avatar...');
+        console.log('Transcrito!');
+
+        // 2. Gera o avatar D-ID
         const avatarUrl = await gerarAvatarLibras(texto);
         console.log('Avatar gerado:', avatarUrl);
-        fs.unlinkSync(req.file.path);
-        res.json({
-            status: 'concluido',
-            transcricao: texto,
-            avatar_url: avatarUrl
+
+        // 3. Baixa o avatar
+        const avatarPath = path.join(uploadDir, `avatar_${Date.now()}.mp4`);
+        arquivosParaLimpar.push(avatarPath);
+        await baixarVideo(avatarUrl, avatarPath);
+
+        // 4. Aplica overlay
+        const videoFinalPath = path.join(uploadDir, `final_${Date.now()}.mp4`);
+        arquivosParaLimpar.push(videoFinalPath);
+        await aplicarOverlay(req.file.path, avatarPath, videoFinalPath);
+
+        // 5. Envia o vídeo final para o usuário
+        res.download(videoFinalPath, 'video_com_libras.mp4', (err) => {
+            arquivosParaLimpar.forEach(f => { if (fs.existsSync(f)) fs.unlinkSync(f); });
+            if (err) console.error('Erro no download:', err.message);
         });
+
     } catch (error) {
         console.error('Erro:', error.message);
-        if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+        arquivosParaLimpar.forEach(f => { if (fs.existsSync(f)) fs.unlinkSync(f); });
         res.status(500).json({ erro: error.message });
     }
 });

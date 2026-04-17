@@ -143,68 +143,66 @@
         }
 
         .resultado h3 {
-            color: #00d4ff;
-            margin-bottom: 15px;
+            color: #00ff88;
+            margin-bottom: 20px;
             text-align: center;
+            font-size: 1.4rem;
+        }
+
+        .video-box {
+            background: #111827;
+            border-radius: 15px;
+            padding: 25px;
+            border: 2px solid #00ff88;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .video-box h4 {
+            color: #00ff88;
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+        }
+
+        video {
+            width: 100%;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            background: #000;
+        }
+
+        .btn-download {
+            background: #00ff88;
+            color: #000;
+            border: none;
+            padding: 14px 30px;
+            border-radius: 20px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            text-decoration: none;
+            display: block;
+        }
+
+        .btn-download:hover {
+            background: #00e077;
         }
 
         .transcricao {
             background: #111827;
             padding: 15px;
             border-radius: 10px;
-            margin-bottom: 20px;
             font-size: 0.95rem;
             line-height: 1.6;
             color: #ccc;
-        }
-
-        .vlibras-box {
-            background: #111827;
-            border-radius: 15px;
-            padding: 20px;
-            border: 2px solid #00d4ff;
-            text-align: center;
-        }
-
-        .vlibras-box h4 {
-            color: #00d4ff;
-            margin-bottom: 15px;
-            font-size: 1.1rem;
-        }
-
-        .btn-libras {
-            background: #00ff88;
-            color: #000;
-            border: none;
-            padding: 12px 30px;
-            border-radius: 20px;
-            font-size: 1rem;
-            font-weight: bold;
-            cursor: pointer;
-            margin-top: 10px;
-            width: 100%;
-        }
-
-        .btn-libras:hover {
-            background: #00e077;
-        }
-
-        .texto-libras {
-            background: #0a0e1a;
-            padding: 15px;
-            border-radius: 10px;
-            margin-top: 15px;
-            font-size: 0.9rem;
-            color: #aaa;
-            text-align: left;
-            display: none;
         }
     </style>
 </head>
 
 <body>
     <div class="logo">🤟 Libras IA</div>
-    <div class="tagline">Envie um vídeo e receba a transcrição em Libras automático</div>
+    <div class="tagline">Envie um vídeo e receba o mesmo vídeo com intérprete de Libras</div>
 
     <label class="upload-box" for="videoInput">
         <div class="upload-icon">📹</div>
@@ -214,7 +212,7 @@
     </label>
 
     <button class="btn" id="btnProcessar" onclick="processarVideo()">
-        🚀 Gerar Transcrição em Libras
+        🚀 Gerar Vídeo com Libras
     </button>
 
     <div class="status" id="status">
@@ -222,42 +220,27 @@
         <div class="progresso">
             <div class="passo" id="passo1">📤 Enviando vídeo</div>
             <div class="passo" id="passo2">🎙️ Transcrevendo áudio com IA</div>
-            <div class="passo" id="passo3">🤟 Preparando Libras</div>
-            <div class="passo" id="passo4">✅ Concluído</div>
+            <div class="passo" id="passo3">🤟 Gerando intérprete de Libras</div>
+            <div class="passo" id="passo4">🎬 Montando vídeo final</div>
+            <div class="passo" id="passo5">✅ Concluído</div>
         </div>
     </div>
 
     <div class="resultado" id="resultado">
-        <h3>✅ Processamento concluído!</h3>
+        <h3>✅ Vídeo com Libras pronto!</h3>
+
+        <div class="video-box">
+            <h4>🎬 Seu vídeo com intérprete de Libras</h4>
+            <video id="videoFinal" controls></video>
+            <a class="btn-download" id="btnDownload" download="video_com_libras.mp4">
+                ⬇️ Baixar Vídeo
+            </a>
+        </div>
 
         <div class="transcricao" id="transcricao"></div>
-
-        <div class="vlibras-box">
-            <h4>🤟 Intérprete de Libras</h4>
-            <p style="color:#888; font-size:0.9rem;">Clique no botão abaixo para ativar o intérprete VLibras e ouvir o
-                texto em Libras</p>
-            <button class="btn-libras" onclick="ativarLibras()">
-                🤟 Reproduzir em Libras
-            </button>
-            <div class="texto-libras" id="textoLibras"></div>
-        </div>
     </div>
 
-    <!-- VLibras Widget Oficial do Governo Brasileiro -->
-    <div vw class="enabled">
-        <div vw-access-button class="active"></div>
-        <div vw-plugin-wrapper>
-            <div class="vw-plugin-top-wrapper"></div>
-        </div>
-    </div>
-    <script src="https://vlibras.gov.br/app/vlibras-plugin.js"></script>
     <script>
-        new window.VLibras.Widget('https://vlibras.gov.br/app');
-    </script>
-
-    <script>
-        let textoTranscrito = '';
-
         document.getElementById('videoInput').addEventListener('change', function (e) {
             const file = e.target.files[0];
             if (file) {
@@ -267,7 +250,7 @@
         });
 
         function ativarPasso(num) {
-            for (let i = 1; i <= 4; i++) {
+            for (let i = 1; i <= 5; i++) {
                 const p = document.getElementById('passo' + i);
                 if (i < num) p.className = 'passo feito';
                 else if (i === num) p.className = 'passo ativo';
@@ -290,21 +273,30 @@
 
             try {
                 ativarPasso(2);
+
                 const response = await fetch('/processar', {
                     method: 'POST',
                     body: formData
                 });
 
                 ativarPasso(3);
-                const data = await response.json();
-                if (data.erro) throw new Error(data.erro);
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.erro || 'Erro no servidor');
+                }
 
                 ativarPasso(4);
-                textoTranscrito = data.transcricao;
 
-                document.getElementById('transcricao').innerHTML =
-                    '<strong style="color:#00d4ff">📝 Transcrição:</strong><br><br>' + data.transcricao;
+                const blob = await response.blob();
+                const videoUrl = URL.createObjectURL(blob);
+
+                ativarPasso(5);
+
+                document.getElementById('videoFinal').src = videoUrl;
+                document.getElementById('btnDownload').href = videoUrl;
                 document.getElementById('resultado').style.display = 'block';
+                document.getElementById('statusTexto').textContent = '✅ Pronto!';
 
                 btn.textContent = '🔄 Processar outro vídeo';
                 btn.disabled = false;
@@ -312,22 +304,7 @@
             } catch (error) {
                 document.getElementById('statusTexto').textContent = '❌ Erro: ' + error.message;
                 btn.disabled = false;
-                btn.textContent = '🚀 Gerar Transcrição em Libras';
-            }
-        }
-
-        function ativarLibras() {
-            if (textoTranscrito) {
-                const textoEl = document.getElementById('textoLibras');
-                textoEl.style.display = 'block';
-                textoEl.innerHTML = '<strong>Texto enviado para o VLibras:</strong><br>' + textoTranscrito;
-
-                // Acionar o VLibras com o texto
-                if (window.VLibras) {
-                    window.VLibras.translate(textoTranscrito);
-                }
-
-                alert('✅ VLibras ativado!\n\nO intérprete no canto da tela vai sinalizar o texto. Clique no boneco no canto inferior direito da tela!');
+                btn.textContent = '🚀 Gerar Vídeo com Libras';
             }
         }
     </script>
