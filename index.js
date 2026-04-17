@@ -57,9 +57,9 @@ async function transcreverAudio(caminhoArquivo) {
         const check = await axios.get(`https://api.assemblyai.com/v2/transcript/${transcriptId}`, {
             headers: { 'authorization': process.env.ASSEMBLYAI_API_KEY }
         });
-        console.log('Status:', check.data.status);
+        console.log('Enviando para AssemblyAI, URL:', audioUrl);
         if (check.data.status === 'completed') return check.data.text;
-        if (check.data.status === 'error') throw new Error('Erro: ' + check.data.error);
+        if (check.data.status === 'error') throw new Error('Erro AssemblyAI: ' + JSON.stringify(check.data));
     }
 }
 
