@@ -63,40 +63,56 @@ async function transcreverAudio(caminhoArquivo) {
     }
 }
 
-async function gerarAvatarLibras(texto) {
-    console.log('Gerando avatar D-ID...');
+async function gerarAvatarLibras(texto, destinoPath) {
+    console.log('Gerando avatar VLibras...');
     const textoResumido = texto.substring(0, 500);
-    const didAuth = 'Basic ' + process.env.DID_API_KEY;
 
-    const response = await axios.post('https://api.d-id.com/talks', {
-        script: {
-            type: 'text',
-            input: textoResumido,
-            provider: {
-                type: 'microsoft',
-                voice_id: 'pt-BR-FranciscaNeural'
-            }
-        },
-        source_url: 'https://clips-presenters.d-id.com/amy/image.png'
-    }, {
-        headers: {
-            'Authorization': didAuth,
-            'Content-Type': 'application/json'
+    const response = await axios.post('https://vlibras.gov.br/api/translate',
+        { text: textoResumido },
+        {
+            headers: { 'Content-Type': 'application/json' },
+            responseType: 'stream',
+            timeout: 120000
         }
+    );
+
+    const writer = fs.createWriteStream(destinoPath);
+    response.data.pipe(writer);
+    return new Promise((resolve, reject) => {
+        writer.on('finish', resolve);
+        writer.on('error', reject);
     });
+}
 
-    const talkId = response.data.id;
-    console.log('Avatar ID:', talkId);
-
-    while (true) {
-        await new Promise(r => setTimeout(r, 3000));
-        const check = await axios.get(`https://api.d-id.com/talks/${talkId}`, {
-            headers: { 'Authorization': didAuth }
-        });
-        console.log('Avatar status:', check.data.status);
-        if (check.data.status === 'done') return check.data.result_url;
-        if (check.data.status === 'error') throw new Error('Erro avatar: ' + check.data.error);
+const response = await axios.post('https://api.d-id.com/talks', {
+    script: {
+        type: 'text',
+        input: textoResumido,
+        provider: {
+            type: 'microsoft',
+            voice_id: 'pt-BR-FranciscaNeural'
+        }
+    },
+    source_url: 'https://clips-presenters.d-id.com/amy/image.png'
+}, {
+    headers: {
+        'Authorization': didAuth,
+        'Content-Type': 'application/json'
     }
+});
+
+const talkId = response.data.id;
+console.log('Avatar ID:', talkId);
+
+while (true) {
+    await new Promise(r => setTimeout(r, 3000));
+    const check = await axios.get(`https://api.d-id.com/talks/${talkId}`, {
+        headers: { 'Authorization': didAuth }
+    });
+    console.log('Avatar status:', check.data.status);
+    if (check.data.status === 'done') return check.data.result_url;
+    if (check.data.status === 'error') throw new Error('Erro avatar: ' + check.data.error);
+}
 }
 
 async function baixarVideo(url, destino) {
@@ -136,42 +152,44 @@ async function aplicarOverlay(videoOriginal, videoAvatar, videoFinal) {
     });
 }
 
-app.post('/processar', upload.single('video'), async (req, res) => {
-    const arquivosParaLimpar = [];
+const avatarPath = path.join(uploadDir, `avatar_${Date.now()}.mp4`);
+arquivosParaLimpar.push(avatarPath);
+await gerarAvatarLibras(texto, avatarPath);
+console.log('Avatar VLibras gerado!');
 
-    try {
-        console.log('Vídeo recebido:', req.file.originalname);
-        arquivosParaLimpar.push(req.file.path);
+try {
+    console.log('Vídeo recebido:', req.file.originalname);
+    arquivosParaLimpar.push(req.file.path);
 
-        // 1. Transcreve o áudio
-        const texto = await transcreverAudio(req.file.path);
-        console.log('Transcrito!');
+    // 1. Transcreve o áudio
+    const texto = await transcreverAudio(req.file.path);
+    console.log('Transcrito!');
 
-        // 2. Gera o avatar D-ID
-        const avatarUrl = await gerarAvatarLibras(texto);
-        console.log('Avatar gerado:', avatarUrl);
+    // 2. Gera o avatar D-ID
+    const avatarUrl = await gerarAvatarLibras(texto);
+    console.log('Avatar gerado:', avatarUrl);
 
-        // 3. Baixa o avatar
-        const avatarPath = path.join(uploadDir, `avatar_${Date.now()}.mp4`);
-        arquivosParaLimpar.push(avatarPath);
-        await baixarVideo(avatarUrl, avatarPath);
+    // 3. Baixa o avatar
+    const avatarPath = path.join(uploadDir, `avatar_${Date.now()}.mp4`);
+    arquivosParaLimpar.push(avatarPath);
+    await baixarVideo(avatarUrl, avatarPath);
 
-        // 4. Aplica overlay
-        const videoFinalPath = path.join(uploadDir, `final_${Date.now()}.mp4`);
-        arquivosParaLimpar.push(videoFinalPath);
-        await aplicarOverlay(req.file.path, avatarPath, videoFinalPath);
+    // 4. Aplica overlay
+    const videoFinalPath = path.join(uploadDir, `final_${Date.now()}.mp4`);
+    arquivosParaLimpar.push(videoFinalPath);
+    await aplicarOverlay(req.file.path, avatarPath, videoFinalPath);
 
-        // 5. Envia o vídeo final para o usuário
-        res.download(videoFinalPath, 'video_com_libras.mp4', (err) => {
-            arquivosParaLimpar.forEach(f => { if (fs.existsSync(f)) fs.unlinkSync(f); });
-            if (err) console.error('Erro no download:', err.message);
-        });
-
-    } catch (error) {
-        console.error('Erro:', error.message);
+    // 5. Envia o vídeo final para o usuário
+    res.download(videoFinalPath, 'video_com_libras.mp4', (err) => {
         arquivosParaLimpar.forEach(f => { if (fs.existsSync(f)) fs.unlinkSync(f); });
-        res.status(500).json({ erro: error.message });
-    }
+        if (err) console.error('Erro no download:', err.message);
+    });
+
+} catch (error) {
+    console.error('Erro:', error.message);
+    arquivosParaLimpar.forEach(f => { if (fs.existsSync(f)) fs.unlinkSync(f); });
+    res.status(500).json({ erro: error.message });
+}
 });
 
 const PORT = process.env.PORT || 3000;
