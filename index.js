@@ -47,7 +47,7 @@ async function transcreverAudio(caminhoArquivo) {
         audio_url: audioUrl
     }, {
         headers: { 'authorization': process.env.ASSEMBLYAI_API_KEY }
-    });
+    }).catch(e => { throw new Error('AssemblyAI 400: ' + JSON.stringify(e.response?.data)); });
 
     const transcriptId = transcriptResp.data.id;
     console.log('Aguardando transcrição ID:', transcriptId);
