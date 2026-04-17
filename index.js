@@ -7,6 +7,7 @@ const path = require('path');
 const fs = require('fs');
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegStatic = require('ffmpeg-static');
+const puppeteer = require('puppeteer');
 
 ffmpeg.setFfmpegPath(ffmpegStatic);
 
@@ -64,25 +65,93 @@ async function transcreverAudio(caminhoArquivo) {
     }
 }
 
-async function gerarAvatarLibras(texto, destinoPath) {
-    console.log('Gerando avatar VLibras...');
+async function gerarAvatarVLibras(texto, destinoPath) {
+    console.log('Abrindo navegador para gravar VLibras...');
     const textoResumido = texto.substring(0, 500);
 
-    const response = await axios.post('https://vlibras.gov.br/api/translate',
-        { text: textoResumido },
-        {
-            headers: { 'Content-Type': 'application/json' },
-            responseType: 'stream',
-            timeout: 120000
-        }
-    );
-
-    const writer = fs.createWriteStream(destinoPath);
-    response.data.pipe(writer);
-    return new Promise((resolve, reject) => {
-        writer.on('finish', resolve);
-        writer.on('error', reject);
+    const browser = await puppeteer.launch({
+        headless: true,
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-gpu',
+            '--use-fake-ui-for-media-stream',
+            '--use-fake-device-for-media-stream'
+        ]
     });
+
+    const page = await browser.newPage();
+    await page.setViewport({ width: 320, height: 240 });
+
+    const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { margin: 0; background: #fff; overflow: hidden; }
+        div[vw] { position: fixed; bottom: 0; right: 0; width: 320px; height: 240px; }
+        .vw-plugin-top-wrapper { display: none; }
+      </style>
+    </head>
+    <body>
+      <div vw class="enabled">
+        <div vw-access-button class="active" style="display:none"></div>
+        <div vw-plugin-wrapper>
+          <div class="vw-plugin-top-wrapper"></div>
+        </div>
+      </div>
+      <script src="https://vlibras.gov.br/app/vlibras-plugin.js"></script>
+      <script>
+        new window.VLibras.Widget('https://vlibras.gov.br/app');
+        window.addEventListener('load', function() {
+          setTimeout(function() {
+            window.VLibras.translate("${textoResumido.replace(/"/g, '\\"')}");
+          }, 3000);
+        });
+      </script>
+    </body>
+    </html>`;
+
+    await page.setContent(html);
+
+    // Aguarda o VLibras carregar e começar a sinalizar
+    await new Promise(r => setTimeout(r, 4000));
+
+    // Grava frames por 30 segundos
+    const frames = [];
+    const totalFrames = 30 * 10; // 10 fps por 30s
+    for (let i = 0; i < totalFrames; i++) {
+        const frame = await page.screenshot({ type: 'jpeg', quality: 80 });
+        frames.push(frame);
+        await new Promise(r => setTimeout(r, 100));
+    }
+
+    await browser.close();
+    console.log('Frames capturados:', frames.length);
+
+    // Converte frames em vídeo
+    const framesDir = path.join(uploadDir, `frames_${Date.now()}`);
+    fs.mkdirSync(framesDir, { recursive: true });
+    frames.forEach((f, i) => {
+        fs.writeFileSync(path.join(framesDir, `frame${String(i).padStart(4, '0')}.jpg`), f);
+    });
+
+    await new Promise((resolve, reject) => {
+        ffmpeg()
+            .input(path.join(framesDir, 'frame%04d.jpg'))
+            .inputFPS(10)
+            .output(destinoPath)
+            .videoCodec('libx264')
+            .outputFPS(10)
+            .on('end', resolve)
+            .on('error', reject)
+            .run();
+    });
+
+    // Limpa frames
+    fs.rmSync(framesDir, { recursive: true });
+    console.log('Vídeo VLibras gerado!');
 }
 
 async function aplicarOverlay(videoOriginal, videoAvatar, videoFinal) {
@@ -123,8 +192,7 @@ app.post('/processar', upload.single('video'), async (req, res) => {
 
         const avatarPath = path.join(uploadDir, `avatar_${Date.now()}.mp4`);
         arquivosParaLimpar.push(avatarPath);
-        await gerarAvatarLibras(texto, avatarPath);
-        console.log('Avatar VLibras gerado!');
+        await gerarAvatarVLibras(texto, avatarPath);
 
         const videoFinalPath = path.join(uploadDir, `final_${Date.now()}.mp4`);
         arquivosParaLimpar.push(videoFinalPath);
