@@ -44,7 +44,7 @@ async function transcreverAudio(caminhoArquivo) {
     const audioUrl = uploadResp.data.upload_url;
     const transcriptResp = await axios.post('https://api.assemblyai.com/v2/transcript', {
         audio_url: audioUrl,
-        speech_model: 'universal-2'
+        speech_models: ['universal-2']
     }, {
         headers: { 'authorization': process.env.ASSEMBLYAI_API_KEY }
     }).catch(e => { throw new Error('AssemblyAI 400: ' + JSON.stringify(e.response?.data)); });
